@@ -41,7 +41,7 @@ def main():
     elif args.command == "ask":
         print(f"Searching for answer to: '{args.query}'...")
         # 1. Retrieve
-        results = vector_store.search(args.query, k=settings.Retrieval_K)
+        results = vector_store.search(args.query, k=settings.RETRIEVAL_K)
         
         if not results:
             print("No relevant documents found.")

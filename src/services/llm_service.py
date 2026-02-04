@@ -192,6 +192,16 @@ class LLMService:
                 "stream": True
             }
             
+            # TRACE: Show the exact prompt being sent
+            formatted_messages = ""
+            for msg in messages:
+                formatted_messages += f"\n--- ROLE: {msg['role'].upper()} ---\n{msg['content']}\n"
+            
+            print_trace(
+                "FULL PROMPT CONSTRUCTION (What the LLM Sees)", 
+                f"Model: {self.model}\n{formatted_messages}"
+            )
+
             print_trace(
                 "STARTING STREAM (LiteLLM)", 
                 f"URL: {url}\nModel: {self.model}\nMode: Streaming"

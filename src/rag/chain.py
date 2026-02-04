@@ -49,7 +49,7 @@ def get_rag_chain(session_id: str):
     # Setup Retriever
     retriever = vector_store.as_retriever(
         search_type="similarity",
-        search_kwargs={"k": settings.Retrieval_K}
+        search_kwargs={"k": settings.RETRIEVAL_K}
     )
     
     # Prompt
@@ -68,4 +68,4 @@ def get_rag_chain(session_id: str):
 def get_retriever(session_id: str):
     """Helper to get just the retriever for listing sources etc."""
     vector_store = get_vector_store(session_id)
-    return vector_store.as_retriever(search_kwargs={"k": settings.Retrieval_K})
+    return vector_store.as_retriever(search_kwargs={"k": settings.RETRIEVAL_K})

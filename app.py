@@ -145,12 +145,12 @@ def main(page: ft.Page):
                     metadata={
                         "query": query,
                         "model": services.llm_service.model,
-                        "retrieval_k": settings.Retrieval_K
+                        "retrieval_k": settings.RETRIEVAL_K
                     }
                 )
                 trace_id = trace.id if trace else None
             
-            results = services.vector_store.search(query, k=settings.Retrieval_K, trace_id=trace_id)
+            results = services.vector_store.search(query, k=settings.RETRIEVAL_K, trace_id=trace_id)
             
             if not results:
                 refusal_msg = random.choice(SOFT_REFUSAL_MESSAGES)

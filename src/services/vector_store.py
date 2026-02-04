@@ -124,6 +124,8 @@ class VectorStore:
         search_results = []
         retrieved_ids = set()
         
+        from src.utils.logger import print_trace
+
         if results['documents']:
             for i, doc in enumerate(results['documents'][0]):
                 doc_id = results['ids'][0][i] if results.get('ids') else f"doc_{i}"
@@ -138,6 +140,14 @@ class VectorStore:
                     score=0.0,
                     source=source
                 ))
+            
+            # Trace Retrieval Details for User
+            trace_details = f"Query: '{query}'\nTop k: {k}\n\n"
+            for idx, res in enumerate(search_results):
+                preview = res.content[:200].replace('\n', ' ') + "..."
+                trace_details += f"[{idx+1}] Source: {res.source} | Content: {preview}\n"
+            
+            print_trace("VECTOR RETRIEVAL RESULTS (Context Found)", trace_details)
         
         # Step 2: Keyword Matching Fallback
         # If query contains specific words, also do keyword search

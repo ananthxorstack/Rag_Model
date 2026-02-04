@@ -138,14 +138,18 @@ async def ask_question_stream(query: str, x_session_id: str = Header("default"))
     """
     RAG Query Endpoint (Streaming)
     """
+    from langchain_core.callbacks import StdOutCallbackHandler
+
     try:
         chain = get_rag_chain(x_session_id)
         langfuse_handler = get_langfuse_callback(x_session_id, trace_name="rag_query")
         
         async def response_generator():
             config = {}
+            callbacks = [StdOutCallbackHandler()]
             if langfuse_handler:
-                config["callbacks"] = [langfuse_handler]
+                callbacks.append(langfuse_handler)
+            config["callbacks"] = callbacks
             
             # Use 'astream' to get events from the chain
             # The chain is: retrieval | stuff_documents
@@ -179,7 +183,8 @@ async def ask_question_stream(query: str, x_session_id: str = Header("default"))
         logger.error(f"Ask failed: {e}")
         import traceback
         traceback.print_exc()
-        def error_gen(): yield f"Error: {str(e)}"
+        error_msg = f"Error: {str(e)}"
+        async def error_gen(): yield error_msg
         return StreamingResponse(error_gen(), media_type="text/plain")
 
 @app.post("/v1/chat/completions")
