@@ -29,7 +29,7 @@ Improve user queries before retrieval.
 4. Prompt Tuning
 
 You tune prompts and system instructions.
-
+----------------------------------------------------------------------------------------------
 ❌ Training the main LLM is NOT useful for RAG
 
 Most RAG systems keep the base LLM untouched because:
@@ -41,7 +41,7 @@ RAG accuracy drops
 cost/time increases
 
 you lose general abilities of the model
-
+----------------------------------------------------------------------------------------------
 User Query
      ↓
 Query Rewriter (optional)
@@ -55,3 +55,31 @@ Rerank Results (optional)
 Retrieved Chunks
      ↓
 LLM (Llama 3.2-1B) Answers using those chunks
+
+----------------------------------------------------------------------------------------------
+My Advantage Over Your RAG
+
+Here’s the difference:
+
+Capability	Me (ChatGPT)	Your RAG System
+Understand meaning	✔	❌ (only vectors)
+Search full PDF	✔	❌ (only chunks)
+Query rewriting	✔	❌
+Reranking	✔	❌
+Context synthesis	✔	❌
+Handle missing keywords	✔	❌
+Intent analysis	✔	❌
+Semantic matching	✔	❌
+----------------------------------------------------------------------------------------------
+I can upgrade your pipeline to support:
+
+🔥 1. Query rewriting (LLM reformulates user's question)
+🔥 2. Hybrid retrieval (vector + keyword + fuzzy)
+🔥 3. Reranker (LLM re-scores chunks)
+🔥 4. Semantic router (detects meaning)
+🔥 5. Larger chunk windows
+🔥 6. PDF normalization
+
+With these upgrades, your RAG will answer the same way I do.
+
+----------------------------------------------------------------------------------------------

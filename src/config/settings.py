@@ -24,8 +24,8 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP: int = 70                  # ideal for 20+ page docs
 
     # Langfuse Settings
-    LANGFUSE_SECRET_KEY: str
-    LANGFUSE_PUBLIC_KEY: str
+    LANGFUSE_SECRET_KEY: str = "sk-lf-79573c9a-e98b-416f-ae54-6d84e1c90a09"
+    LANGFUSE_PUBLIC_KEY: str = "pk-lf-3b16fa78-c1c7-448b-b5ed-4af4fdc158aa"
     LANGFUSE_BASE_URL: str = "http://127.0.0.1:3000"
     LANGFUSE_ENABLED: bool = True
 

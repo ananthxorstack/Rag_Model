@@ -9,7 +9,7 @@ https://langfuse.com/docs/sdk/python
 This integration provides a working framework that logs tracking data.
 When you have valid API keys, the data will be sent to Langfuse.
 """
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from src.config.settings import settings
 import logging
 import uuid
@@ -47,7 +47,7 @@ class LangfuseService:
                 logger.error(f"Failed to initialize Langfuse: {e}")
                 self.enabled = False
     
-    def create_trace(self, name: str, user_id: str = "default_user", metadata: Optional[Dict] = None):
+    def create_trace(self, name: str, user_id: str = "default_user", metadata: Optional[Dict] = None, tags: Optional[List[str]] = None):
         """Create a new trace for tracking a user interaction."""
         if not self.enabled:
             return None
@@ -57,7 +57,7 @@ class LangfuseService:
             trace_id = str(uuid.uuid4())
             
             # Log the trace info
-            logger.info(f"Langfuse Trace: {name} (ID: {trace_id}, User: {user_id})")
+            logger.info(f"Langfuse Trace: {name} (ID: {trace_id}, User: {user_id}, Tags: {tags})")
             
             # If we have a client, send the event
             if self.client:
@@ -65,7 +65,8 @@ class LangfuseService:
                     id=trace_id,
                     name=name,
                     user_id=user_id,
-                    metadata=metadata
+                    metadata=metadata,
+                    tags=tags
                 )
             
             # Return a simple object with the ID

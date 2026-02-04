@@ -36,6 +36,13 @@ class LLMService:
         start_time = time.time()
         
         try:
+
+            url = f"{self.base_url}/chat/completions"
+            payload = {
+                "model": self.model,
+                "messages": messages
+            }
+
             print_trace(
                 "PREPARING REQUEST to LiteLLM", 
                 f"URL: {url}\nModel: {self.model}\nPayload: {json.dumps(payload, indent=2)}"
@@ -237,10 +244,23 @@ class LLMService:
             # Track complete response
             if self.langfuse.enabled:
                 # Estimate Usage
+                input_tokens = len(json.dumps(messages)) // 4  # Roughly 4 chars per token
+                output_tokens = len(full_response) // 4
+                
                 usage = {
-                    "input": len(json.dumps(messages)), 
-                    "output": len(full_response),
-                    "total": len(json.dumps(messages)) + len(full_response)
+                    "input": input_tokens, 
+                    "output": output_tokens,
+                    "total": input_tokens + output_tokens,
+                    "unit": "TOKENS"  # Explicitly state unit
+                }
+
+                # Add explicit tags and metadata
+                metadata = {
+                    "question": question,
+                    "response_time_seconds": elapsed_time,
+                    "stream": True,
+                    "provider": "litellm",
+                    "environment": "development" # Tag environment
                 }
 
                 self.langfuse.track_generation(
@@ -248,12 +268,7 @@ class LLMService:
                     name="rag_streaming_generation",
                     model=self.model,
                     completion=full_response,
-                    metadata={
-                        "question": question,
-                        "response_time_seconds": elapsed_time,
-                        "stream": True,
-                        "provider": "litellm"
-                    },
+                    metadata=metadata,
                     usage=usage,
                     start_time=start_time,
                     completion_start_time=completion_start_time,
@@ -261,6 +276,16 @@ class LLMService:
                     level="DEFAULT",
                     prompt=messages,
                     prompt_object=langfuse_prompt
+                )
+                
+                # Check if we should log a custom score for latency
+                # < 2s = 1.0 (Excellent), < 5s = 0.7 (Good), > 5s = 0.5 (Slow)
+                latency_score = 1.0 if elapsed_time < 2.0 else (0.7 if elapsed_time < 5.0 else 0.5)
+                self.langfuse.score(
+                    trace_id=trace_id,
+                    name="response_speed",
+                    value=latency_score,
+                    comment=f"Response generated in {elapsed_time:.2f}s"
                 )
                 
         except Exception as e:

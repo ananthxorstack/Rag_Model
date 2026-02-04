@@ -102,6 +102,28 @@ class DocumentProcessor:
             print(f"Vision analysis failed: {e}")
             return ""
 
+
+
+    def _normalize_text(self, text: str) -> str:
+        """
+        Cleans and normalizes text from PDFs/documents.
+        Removes excessive whitespace, fixes hyphenation, etc.
+        """
+        import re
+        
+        # 1. Fix hyphenated words at end of lines (e.g. "re-\nquire" -> "require")
+        text = re.sub(r'(\w+)-\n(\w+)', r'\1\2', text)
+        
+        # 2. Replace multiple newlines with a single newline (preserves paragraphs)
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        
+        # 3. Replace multiple spaces with single space
+        text = re.sub(r'[ \t]+', ' ', text)
+        
+        # 4. Remove purely non-ascii garbage if necessary (optional, skipping for now to support utf8)
+        
+        return text.strip()
+
     def _chunk_text(self, text: str, source_id: str) -> list[DocumentChunk]:
         """
         Splits text into chunks safe for embeddings.
@@ -109,10 +131,13 @@ class DocumentProcessor:
         However, the error 'input length exceeds context length' suggests we are sending massive chunks.
         We will use a character-based limit as a hard fallback to words.
         """
+        # Normalize text first
+        text = self._normalize_text(text)
+
         # Conservative limits
-        # Assuming ~4 chars per token. 512 tokens ~= 2000 chars. 
-        # Nomic often handles more, but let's be safe to stop 500 errors.
-        MAX_CHARS = 1500 
+        # Assuming ~4 chars per token. 4000 chars ~= 1000 tokens.
+        # This allows for larger context windows as requested.
+        MAX_CHARS = 4000 
         
         chunk_size = settings.CHUNK_SIZE # This is currently treated as 'words' in the code.
         overlap = settings.CHUNK_OVERLAP # 'words'

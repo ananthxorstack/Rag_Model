@@ -140,9 +140,31 @@ async def ask_question_stream(query: str, x_session_id: str = Header("default"))
     """
     from langchain_core.callbacks import StdOutCallbackHandler
 
+    import uuid
     try:
-        chain = get_rag_chain(x_session_id)
-        langfuse_handler = get_langfuse_callback(x_session_id, trace_name="rag_query")
+        # Generate explicit trace ID
+        trace_id = str(uuid.uuid4())
+        
+        # Pass trace_id so reranker can attach to it
+        chain = get_rag_chain(x_session_id, trace_id=trace_id)
+        
+        # Define metadata for the trace
+        trace_metadata = {
+            "session_id": x_session_id,
+            "endpoint": "/ask",
+            "environment": "development"
+        }
+        trace_tags = ["rag-pipeline", "streaming", "beta"]
+        
+        # Pass tags and metadata to the callback generator
+        # User requested matching trace name 'rag_streaming_generation' or similiar details
+        langfuse_handler = get_langfuse_callback(
+            x_session_id, 
+            trace_name="rag_streaming_generation", 
+            trace_id=trace_id,   # IMPORTANT: Match the ID used in the chain
+            tags=trace_tags,
+            metadata=trace_metadata
+        )
         
         async def response_generator():
             config = {}
@@ -155,27 +177,75 @@ async def ask_question_stream(query: str, x_session_id: str = Header("default"))
             # The chain is: retrieval | stuff_documents
             sources_yielded = False
             
-            async for chunk in chain.astream({"input": query}, config=config):
-                # 1. Handle Context (Sources)
-                # Depending on chain structure, 'context' usually appears in one of the first chunks
-                if "context" in chunk and not sources_yielded:
-                    docs = chunk["context"]
-                    # Extract filenames
-                    sources = set()
-                    prefix = f"{x_session_id}_"
-                    for d in docs:
-                        src = d.metadata.get("source", "unknown")
-                        if src.startswith(prefix):
-                            src = src[len(prefix):] # Clean prefix
-                        sources.add(src)
-                        
-                    if sources:
-                        yield f"Sources: {', '.join(sources)}\n\n"
-                    sources_yielded = True
-                
-                # 2. Handle Answer
-                if "answer" in chunk:
-                    yield chunk["answer"]
+            start_time = time.time()
+            full_response = ""
+            
+            try:
+                async for chunk in chain.astream({"input": query}, config=config):
+                    # 1. Handle Context (Sources)
+                    # Depending on chain structure, 'context' usually appears in one of the first chunks
+                    if "context" in chunk and not sources_yielded:
+                        docs = chunk["context"]
+                        # Extract filenames
+                        sources = set()
+                        prefix = f"{x_session_id}_"
+                        for d in docs:
+                            src = d.metadata.get("source", "unknown")
+                            if src.startswith(prefix):
+                                src = src[len(prefix):] # Clean prefix
+                            sources.add(src)
+                            
+                        if sources:
+                            yield f"Sources: {', '.join(sources)}\n\n"
+                        sources_yielded = True
+                    
+                    # 2. Handle Answer
+                    if "answer" in chunk:
+                        content = chunk["answer"]
+                        if content:
+                            full_response += content
+                            yield content
+            finally:
+                # Log final score manually if callback missed it
+                elapsed = time.time() - start_time
+                from src.services.langfuse_service import langfuse_service
+                if langfuse_service.enabled:
+                    # Latency Score
+                    latency_score = 1.0 if elapsed < 2.0 else (0.7 if elapsed < 5.0 else 0.5)
+                    langfuse_service.score(
+                        trace_id=trace_id,
+                        name="response_speed",
+                        value=latency_score,
+                        comment=f"Response generated in {elapsed:.2f}s"
+                    )
+                    
+                    # Manual usage tracking backup
+                    input_tokens = len(query) // 4 # Approximate
+                    output_tokens = len(full_response) // 4
+                    
+                    usage = {
+                        "input": input_tokens,
+                        "output": output_tokens,
+                        "total": input_tokens + output_tokens,
+                        "unit": "TOKENS"
+                    }
+                    
+                    # Explicitly track the generation to ensure it appears in dashboard
+                    langfuse_service.track_generation(
+                        trace_id=trace_id,
+                        name="rag_streaming_generation", # The user specifically requested this name
+                        model=settings.LLM_MODEL,
+                        prompt=query,
+                        completion=full_response,
+                        metadata={
+                            "stream": True, 
+                            "response_time": elapsed,
+                            "endpoint": "/ask"
+                        },
+                        usage=usage,
+                        start_time=start_time,
+                        end_time=time.time()
+                    )
                     
         return StreamingResponse(response_generator(), media_type="text/plain")
         
