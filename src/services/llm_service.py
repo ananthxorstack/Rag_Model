@@ -165,6 +165,8 @@ class LLMService:
         
         if self.langfuse.enabled:
             langfuse_prompt = self.langfuse.get_prompt("rag-main-prompt")
+            if not langfuse_prompt:
+                 print_trace("LANGFUSE PROMPT", "WARNING: 'rag-main-prompt' not found in Langfuse. Prompt linking will be disabled.")
             
         if langfuse_prompt:
             # Compile messages from the managed template
@@ -186,8 +188,9 @@ class LLMService:
                 {"role": "user", "content": user_content}
             ]
         
-        start_time = time.time()
-        start_time = time.time()
+        # Use datetime for Langfuse compatibility
+        from datetime import datetime, timezone
+        start_time = datetime.now(timezone.utc)
         completion_start_time = None
         full_response = ""
         
@@ -232,14 +235,15 @@ class LLMService:
                                 delta = chunk_json['choices'][0]['delta']
                                 if 'content' in delta:
                                     if completion_start_time is None:
-                                        completion_start_time = time.time()
+                                        completion_start_time = datetime.now(timezone.utc)
                                     content = delta['content']
                                     full_response += content
                                     yield content
                             except json.JSONDecodeError:
                                 continue
             
-            elapsed_time = time.time() - start_time
+            end_time = datetime.now(timezone.utc)
+            elapsed_time = (end_time - start_time).total_seconds()
             
             # Track complete response
             if self.langfuse.enabled:
@@ -272,7 +276,7 @@ class LLMService:
                     usage=usage,
                     start_time=start_time,
                     completion_start_time=completion_start_time,
-                    end_time=time.time(),
+                    end_time=end_time,
                     level="DEFAULT",
                     prompt=messages,
                     prompt_object=langfuse_prompt
@@ -299,7 +303,7 @@ class LLMService:
                     completion=GENERIC_ERROR_MESSAGE,
                     metadata={"error": str(e)},
                     start_time=start_time,
-                    end_time=time.time(),
+                    end_time=datetime.now(timezone.utc),
                     level="ERROR"
                 )
             yield GENERIC_ERROR_MESSAGE

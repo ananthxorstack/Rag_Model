@@ -19,9 +19,15 @@ class Settings(BaseSettings):
     RETRIEVAL_K: int = 5                     # R@5 sweet spot
     MAX_CONTEXT_DOCS: int = 4                # prevents long noisy queries
 
-    # Chunking Settings (Optimized)
-    CHUNK_SIZE: int = 420                    # best for nomic embeddings
-    CHUNK_OVERLAP: int = 70                  # ideal for 20+ page docs
+    # Chunking Settings (Advanced)
+    CHUNK_SIZE: int = 500                    # Characters (not words)
+    CHUNK_OVERLAP: int = 100                 # Character overlap between chunks
+    CHUNK_STRATEGY: str = "recursive"        # Options: recursive, sentence, fixed
+    
+    # Hybrid Search Settings
+    HYBRID_SEARCH_ENABLED: bool = True       # Enable BM25 + Vector hybrid search
+    HYBRID_SEMANTIC_WEIGHT: float = 0.7      # Weight for semantic search (0-1)
+    HYBRID_BM25_WEIGHT: float = 0.3          # Weight for BM25 keyword search (0-1)
 
     # Langfuse Settings
     LANGFUSE_SECRET_KEY: str = "sk-lf-79573c9a-e98b-416f-ae54-6d84e1c90a09"

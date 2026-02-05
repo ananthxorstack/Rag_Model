@@ -47,7 +47,7 @@ class LangfuseService:
                 logger.error(f"Failed to initialize Langfuse: {e}")
                 self.enabled = False
     
-    def create_trace(self, name: str, user_id: str = "default_user", metadata: Optional[Dict] = None, tags: Optional[List[str]] = None):
+    def create_trace(self, name: str, user_id: str = "default_user", metadata: Optional[Dict] = None, tags: Optional[List[str]] = None, input: Any = None, output: Any = None):
         """Create a new trace for tracking a user interaction."""
         if not self.enabled:
             return None
@@ -66,7 +66,9 @@ class LangfuseService:
                     name=name,
                     user_id=user_id,
                     metadata=metadata,
-                    tags=tags
+                    tags=tags,
+                    input=input,
+                    output=output
                 )
             
             # Return a simple object with the ID
@@ -77,6 +79,29 @@ class LangfuseService:
             return TraceRef(trace_id)
         except Exception as e:
             logger.error(f"Failed to create trace: {e}")
+            return None
+
+    def update_trace(self, trace_id: str, output: Any = None, metadata: Optional[Dict] = None):
+        """Update an existing trace with output or metadata."""
+        if not self.enabled or not self.client or not trace_id:
+            return None
+        
+        try:
+            # Use the low-level client or just send a new trace event with same ID to update?
+            # The Langfuse Python SDK allows updating a trace by re-sending with the same ID.
+            # Alternatively, if we had the stateful trace object, we could call .update().
+            # Since we only have the ID here, we use the client.trace() method again with the same ID.
+            # This works as an upsert/update in Langfuse.
+            
+            logger.info(f"Updating Langfuse Trace: {trace_id}")
+            self.client.trace(
+                id=trace_id,
+                output=output,
+                metadata=metadata
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to update trace: {e}")
             return None
     
     def track_generation(
@@ -92,7 +117,8 @@ class LangfuseService:
         start_time: Optional[float] = None,
         completion_start_time: Optional[float] = None,
         end_time: Optional[float] = None,
-        prompt_object: Any = None
+        prompt_object: Any = None,
+        tags: Optional[List[str]] = None
     ):
         """Track an LLM generation event."""
         if not self.enabled:
@@ -121,7 +147,8 @@ class LangfuseService:
                     start_time=start_time,
                     completion_start_time=completion_start_time,
                     end_time=end_time,
-                    prompt=prompt_object # Link the prompt version
+                    prompt=prompt_object, # Link the prompt version
+                    tags=tags
                 )
             
             return True

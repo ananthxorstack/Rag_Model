@@ -126,70 +126,55 @@ class DocumentProcessor:
 
     def _chunk_text(self, text: str, source_id: str) -> list[DocumentChunk]:
         """
-        Splits text into chunks safe for embeddings.
-        Nomic Embed Text usually supports 2048 or 8192 tokens depending on version.
-        However, the error 'input length exceeds context length' suggests we are sending massive chunks.
-        We will use a character-based limit as a hard fallback to words.
+        Splits text into chunks using the advanced ChunkingService.
+        Supports multiple strategies: recursive, sentence-based, fixed.
         """
+        from src.services.chunking_service import ChunkingService, ChunkStrategy
+        from src.utils.logger import logger
+        
         # Normalize text first
         text = self._normalize_text(text)
-
-        # Conservative limits
-        # Assuming ~4 chars per token. 4000 chars ~= 1000 tokens.
-        # This allows for larger context windows as requested.
-        MAX_CHARS = 4000 
         
-        chunk_size = settings.CHUNK_SIZE # This is currently treated as 'words' in the code.
-        overlap = settings.CHUNK_OVERLAP # 'words'
+        # Get chunking strategy from settings (default to recursive)
+        strategy_name = getattr(settings, 'CHUNK_STRATEGY', 'recursive').lower()
+        try:
+            strategy = ChunkStrategy(strategy_name)
+        except ValueError:
+            logger.warning(f"Unknown chunk strategy '{strategy_name}', using recursive")
+            strategy = ChunkStrategy.RECURSIVE
         
-        words = text.split()
-        chunks = []
-        current_chunk = []
-        current_length = 0
+        # Initialize chunking service with settings
+        chunking_service = ChunkingService(
+            chunk_size=getattr(settings, 'CHUNK_SIZE', 500),
+            chunk_overlap=getattr(settings, 'CHUNK_OVERLAP', 100),
+            strategy=strategy
+        )
         
-        for word in words:
-            # If a single word is massive (e.g. base64 string), hard split it
-            if len(word) > MAX_CHARS:
-                # Add current buffer if exists
-                if current_chunk:
-                    chunks.append(DocumentChunk(
-                        content=" ".join(current_chunk),
-                        source_id=source_id,
-                        metadata={"source": source_id}
-                    ))
-                    current_chunk = []
-                    current_length = 0
-                
-                # Split massive word
-                for i in range(0, len(word), MAX_CHARS):
-                    chunks.append(DocumentChunk(
-                        content=word[i:i+MAX_CHARS],
-                        source_id=source_id,
-                        metadata={"source": source_id}
-                    ))
-                continue
-
-            # Check if adding this word exceeds limits (either word count or char count)
-            if (len(current_chunk) >= chunk_size) or (current_length + len(word) + 1 > MAX_CHARS):
-                chunks.append(DocumentChunk(
-                    content=" ".join(current_chunk),
-                    source_id=source_id,
-                    metadata={"source": source_id}
-                ))
-                
-                # Overlap logic
-                overlap_words = current_chunk[-overlap:] if overlap > 0 else []
-                current_chunk = list(overlap_words)
-                current_length = sum(len(w) + 1 for w in current_chunk)
-            
-            current_chunk.append(word)
-            current_length += len(word) + 1
+        # Chunk the text
+        chunk_dicts = chunking_service.chunk_text(
+            text=text,
+            metadata={"source": source_id}
+        )
         
-        if current_chunk:
-            chunks.append(DocumentChunk(
-                content=" ".join(current_chunk),
+        # Validate chunks (remove too-small chunks)
+        chunk_dicts = chunking_service.validate_chunks(chunk_dicts, min_chunk_size=50)
+        
+        # Log statistics
+        stats = chunking_service.get_chunk_stats(chunk_dicts)
+        logger.info(f"Chunking stats for {source_id}: {stats}")
+        
+        # Convert to DocumentChunk objects
+        document_chunks = []
+        for chunk_dict in chunk_dicts:
+            document_chunks.append(DocumentChunk(
+                content=chunk_dict["text"],
                 source_id=source_id,
-                metadata={"source": source_id}
+                metadata={
+                    "source": source_id,
+                    "chunk_index": chunk_dict["chunk_index"],
+                    "chunk_strategy": chunk_dict["chunk_strategy"],
+                    "chunk_size": chunk_dict["chunk_size"]
+                }
             ))
-            
-        return chunks
+        
+        return document_chunks

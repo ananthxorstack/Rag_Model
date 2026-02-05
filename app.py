@@ -146,7 +146,9 @@ def main(page: ft.Page):
                         "query": query,
                         "model": services.llm_service.model,
                         "retrieval_k": settings.RETRIEVAL_K
-                    }
+                    },
+                    input={"query": query}, # Using dict to be structured, or just query string
+                    tags=["environment:development"]
                 )
                 trace_id = trace.id if trace else None
             
@@ -164,6 +166,9 @@ def main(page: ft.Page):
                         input_data={"query": query},
                         output_data={"message": refusal_msg}
                     )
+                    # Update trace with refusal
+                    services.llm_service.langfuse.update_trace(trace_id=trace_id, output=refusal_msg)
+
                 return
 
             context_text = "\n\n".join([r.content for r in results])
@@ -202,6 +207,10 @@ def main(page: ft.Page):
             
             # Flush Langfuse events
             if services.llm_service.langfuse.enabled:
+                # Update the trace with the final response
+                if trace_id:
+                     services.llm_service.langfuse.update_trace(trace_id=trace_id, output=full_response)
+                
                 services.llm_service.langfuse.flush()
             
         except Exception as e:

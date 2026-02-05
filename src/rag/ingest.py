@@ -23,30 +23,52 @@ def ingest_file(file_path: str, session_id: str):
     docs = loader.load()
     
     # 2. Split Documents
-    # Use config chunk size (which was 300 words). Convert approx to chars (x4) or use explicit setting
-    # Let's assume settings.CHUNK_SIZE is words, but usually recursively uses chars.
-    # 300 words ~ 1200-1500 chars.
-    chunk_size = settings.CHUNK_SIZE * 4 
-    chunk_overlap = settings.CHUNK_OVERLAP * 4
+    # Settings are now in CHARACTERS (not words)
+    # Use them directly without multiplication
+    chunk_size = settings.CHUNK_SIZE  # Already in characters (e.g., 500)
+    chunk_overlap = settings.CHUNK_OVERLAP  # Already in characters (e.g., 100)
     
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
-        separators=["\n\n", "\n", " ", ""]
+        separators=["\n\n", "\n", ". ", " ", ""]
     )
     
     chunks = splitter.split_documents(docs)
+    
+    # Debug: Check if chunks are valid
+    from src.utils.logger import logger
+    logger.info(f"Generated {len(chunks)} chunks from {file_path}")
+    if not chunks:
+        logger.warning("No chunks generated! The document might be empty or unreadable.")
+        return 0
+        
+    if chunks:
+        logger.info(f"First chunk preview: {chunks[0].page_content[:100]}...")
     
     # 3. Add Metadata
     filename = os.path.basename(file_path)
     for chunk in chunks:
         chunk.metadata["session_id"] = session_id
-        chunk.metadata["source"] = filename # Simplify source to just filename for display
-        # We might need the unique ID in metadata for deletion
+        chunk.metadata["source"] = filename
         chunk.metadata["file_id"] = f"{session_id}_{filename}"
 
     # 4. Index
     vector_store = get_vector_store(session_id)
+    
+    # Debug: Verify embedding generation works
+    try:
+        sample_text = chunks[0].page_content
+        logger.info(f"Testing embedding generation for text (len={len(sample_text)})...")
+        emb = vector_store.embeddings.embed_query(sample_text)
+        if not emb:
+            logger.error("Embedding generation returned EMPTY list/None!")
+            raise ValueError("Embedding generation failed")
+        logger.info(f"Embedding check passed. Vector dimension: {len(emb)}")
+    except Exception as e:
+        logger.error(f"Embedding check FAILED: {e}")
+        raise e
+
     vector_store.add_documents(chunks)
     
     return len(chunks)
